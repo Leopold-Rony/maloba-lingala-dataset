@@ -1,0 +1,55 @@
+# Mode opératoire — Connecter une API Google (Sheets, Drive, etc.) à KNIME
+
+Ce document résume la procédure complète pour connecter KNIME à une API Google via un compte de service, telle qu'utilisée pour le projet Maloba. Réutilisable pour tout futur projet nécessitant une connexion à Google Sheets, Google Drive, ou une autre API Google.
+
+## Prérequis
+
+- Un compte Google **personnel** (évite les comptes professionnels/scolaires liés à une organisation : ils appliquent souvent des restrictions bloquantes que tu ne contrôles pas).
+- KNIME Analytics Platform installé, avec l'extension **KNIME Google Connectors** disponible (Help → Install New Software, vérifier qu'elle est cochée).
+
+## Procédure
+
+### 1. Créer un projet Google Cloud
+Sur [console.cloud.google.com](https://console.cloud.google.com), menu déroulant projet en haut → **Nouveau projet**. Donne un nom clair lié au projet concerné (ex: `nomprojet-knime`). Gratuit, aucune carte bancaire requise à ce stade.
+
+### 2. Activer les API nécessaires
+Menu ☰ → **API et services → Bibliothèque**. Recherche et **Active** chaque API dont tu as besoin, par exemple :
+- Google Sheets API (lecture/écriture de feuilles)
+- Google Drive API (quasi systématiquement nécessaire en complément, pour localiser les fichiers)
+- D'autres API Google selon le projet (Google Calendar API, Google Docs API, etc. — même logique)
+
+### 3. Créer un compte de service
+Menu ☰ → **API et services → Identifiants** → **Créer des identifiants → Compte de service**. Donne-lui un nom clair (ex: `nomprojet-reader`). Tu peux passer l'étape des rôles (Continuer, puis Terminé) pour un usage simple de lecture de fichiers.
+
+### 4. Générer et télécharger la clé JSON
+Clique sur le compte de service créé → onglet **Clés** → **Ajouter une clé → Créer une clé → JSON → Créer**. Le fichier se télécharge une seule fois — range-le dans un dossier sûr, **jamais dans un dépôt Git versionné** (ajoute-le à `.gitignore` si tu utilises Git en local).
+
+### 5. Partager la ressource avec l'adresse du compte de service
+Copie l'adresse email du compte de service (`...@nomprojet.iam.gserviceaccount.com`). Sur le fichier Google Sheets/Drive concerné, clique **Partager**, colle cette adresse comme un collaborateur normal, donne les droits nécessaires (Lecteur ou Éditeur). **Étape la plus souvent oubliée** — sans elle, la connexion échoue.
+
+### 6. Configurer les nœuds KNIME
+Chaîne standard : **Google Authentication (API Key)** (pointe vers le fichier JSON, coche les scopes nécessaires : Sheets, Drive...) → **Google Sheets Connector** (ou l'équivalent pour l'API utilisée) → **Google Sheets Reader/Writer**. Renseigne l'ID de la ressource (ex: l'ID du Sheet, visible dans l'URL entre `/d/` et `/edit`).
+
+### 7. Tester
+Exécute la chaîne de nœuds. En cas d'erreur "Could not retrieve..." : vérifie en priorité l'étape 5 (partage) puis les scopes de l'étape 6.
+
+## Problème connu : "Service account key creation is disabled"
+
+Message d'erreur : `iam.disableServiceAccountKeyCreation` bloque la création de la clé à l'étape 4.
+
+**Cause** : règle de sécurité par défaut de Google Cloud, appliquée même sur certains comptes personnels.
+
+**Solution (fonctionne dans la majorité des cas sur un compte perso)** :
+1. `console.cloud.google.com/iam-admin/orgpolicies` (projet concerné sélectionné).
+2. Rechercher `iam.disableServiceAccountKeyCreation`.
+3. Gérer la règle → Modifier → **Override parent's policy** → régler sur **Not enforced**.
+4. Enregistrer, puis reprendre l'étape 4.
+
+**Si l'option "Override" n'est pas disponible** : signe qu'une organisation existe au-dessus de ton compte (parfois créée automatiquement sans que tu le saches). Dans ce cas, passer par une authentification OAuth interactive (nœud `OAuth2 Authenticator`) plutôt qu'un compte de service, ou utiliser un compte Google totalement neuf.
+
+## Bonnes pratiques à garder pour tout futur projet
+
+- Un projet Google Cloud dédié par projet KNIME (ne pas tout mélanger dans un seul projet Cloud).
+- Un compte de service par projet, avec uniquement les scopes strictement nécessaires.
+- Ne jamais committer un fichier de clé JSON dans un dépôt Git.
+- Nommer clairement projets et comptes de service pour s'y retrouver facilement plus tard.
